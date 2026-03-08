@@ -405,7 +405,7 @@ details[open] .summary-arrow { transform: rotate(90deg); }
 .log-table {
   width: 100%;
   border-collapse: collapse;
-  font-family: var(--font-mono);
+  font-family: 'JetBrains Mono', 'Pretendard', 'Malgun Gothic', monospace;
   font-size: .7rem;
 }
 .log-table th {
@@ -436,9 +436,9 @@ details[open] .summary-arrow { transform: rotate(90deg); }
   font-family: var(--font-sans);
 }
 
-.status-success { color: var(--green); font-weight: 600; }
+.status-success { color: var(--green); font-weight: 600; white-space: nowrap; }
 .status-empty   { color: var(--text-3); }
-.status-error   { color: var(--red); font-weight: 600; }
+.status-error   { color: var(--red); font-weight: 600; white-space: nowrap; }
 .status-skipped { color: var(--text-3); }
 
 /* ── Modal ──────────────────────────── */

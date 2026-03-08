@@ -281,6 +281,7 @@ async function reloadTable() {
 async function reloadLogs() {
   const res = await fetch('/api/logs');
   const logs = await res.json();
+  logs.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
   const tbody = document.getElementById('log-tbody');
   if (!logs.length) {
     tbody.innerHTML = '<tr><td colspan="4" class="log-empty">로그 없음</td></tr>';
@@ -294,7 +295,6 @@ async function reloadLogs() {
     <td>${l.message}</td>
     <td>${l.timestamp}</td>
   </tr>`).join('');
-  document.getElementById('log-details').open = true;
 }
 </script>
 </body>
