@@ -24,6 +24,8 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Pre-warm Chromium to avoid cold-start timeout on first capture
+    await scraper.prewarm_browser()
     scheduler.start(config.SCHEDULE_HOUR)
     yield
     scheduler.stop()

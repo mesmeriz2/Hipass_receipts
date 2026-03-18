@@ -49,7 +49,7 @@ def _append_log(entry: dict) -> None:
 
 
 async def login(page: Page, user_id: str, password: str) -> None:
-    await page.goto("https://www.hipass.co.kr/comm/lginpg.do", timeout=60000)
+    await page.goto("https://www.hipass.co.kr/comm/lginpg.do", timeout=120_000)
 
     try:
         await page.wait_for_load_state("networkidle", timeout=8000)
@@ -263,6 +263,31 @@ async def capture_date(
         page.remove_listener("dialog", on_dialog)
 
 
+async def _launch_and_login(
+    p, max_retries: int = 2
+) -> tuple:
+    """Launch browser and login with retry. Returns (browser, page).
+    On NAS cold-start, the first attempt often times out; retry usually succeeds."""
+    last_err = None
+    for attempt in range(1, max_retries + 1):
+        browser = await p.chromium.launch(headless=True, args=CHROMIUM_ARGS)
+        page = await browser.new_page(viewport={"width": 1024, "height": 768})
+        try:
+            await login(page, config.HIPASS_ID, config.HIPASS_PW)
+            await navigate_to_lookup(page, config.ECD_NO)
+            return browser, page
+        except Exception as e:
+            last_err = e
+            print(f"[scraper] login attempt {attempt}/{max_retries} failed: {e}")
+            try:
+                await browser.close()
+            except Exception:
+                pass
+            if attempt < max_retries:
+                await asyncio.sleep(3)
+    raise RuntimeError(f"로그인 {max_retries}회 시도 실패: {last_err}")
+
+
 async def capture_single_date_standalone(
     target_date: date,
     progress_callback: Optional[Callable[[int, int, str], None]] = None,
@@ -271,14 +296,9 @@ async def capture_single_date_standalone(
     date_str = target_date.strftime("%Y-%m-%d")
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True, args=CHROMIUM_ARGS)
-        page = await browser.new_page(viewport={"width": 1024, "height": 768})
-
         try:
-            await login(page, config.HIPASS_ID, config.HIPASS_PW)
-            await navigate_to_lookup(page, config.ECD_NO)
+            browser, page = await _launch_and_login(p)
         except Exception as e:
-            await browser.close()
             _append_log({
                 "date": date_str,
                 "status": "error",
@@ -331,14 +351,9 @@ async def capture_last_n_days(
     dates = [today - timedelta(days=i) for i in range(1, n + 1)]
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True, args=CHROMIUM_ARGS)
-        page = await browser.new_page(viewport={"width": 1024, "height": 768})
-
         try:
-            await login(page, config.HIPASS_ID, config.HIPASS_PW)
-            await navigate_to_lookup(page, config.ECD_NO)
+            browser, page = await _launch_and_login(p)
         except Exception as e:
-            await browser.close()
             _append_log({
                 "date": today.isoformat(),
                 "status": "error",
@@ -400,6 +415,20 @@ async def capture_last_n_days(
         await browser.close()
 
     return capture_logs
+
+
+async def prewarm_browser() -> None:
+    """Launch and immediately close Chromium to warm up the process cache.
+    This prevents cold-start timeouts on NAS hardware."""
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True, args=CHROMIUM_ARGS)
+            page = await browser.new_page()
+            await page.goto("about:blank")
+            await browser.close()
+        print("[scraper] browser pre-warm complete")
+    except Exception as e:
+        print(f"[scraper] browser pre-warm failed (non-fatal): {e}")
 
 
 def _now_iso() -> str:
